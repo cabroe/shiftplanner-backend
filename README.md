@@ -48,3 +48,32 @@ export default tseslint.config({
   },
 })
 ```
+
+
+
+
+
+{/* Schichtvorlagen Widget */}
+<div className="space-y-4">
+  <div className="font-bold">Schichtvorlagen</div>
+  <div className="space-y-2">
+    {shiftTypes.map(shiftType => (
+      <div
+        key={shiftType.ID}
+        className="h-16 p-2 rounded cursor-move"
+        style={{ 
+          backgroundColor: shiftType.color,
+          opacity: 0.9
+        }}
+        draggable="true"
+      >
+        <div className="text-white font-medium">
+          {shiftType.name}
+          <div className="text-sm opacity-90">
+            {shiftType.start_time} - {shiftType.end_time}
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+</div>        

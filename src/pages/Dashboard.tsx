@@ -4,11 +4,11 @@ import TopBar from '@/components/TopBar';
 
 const Dashboard = () => {
   return (
-    <div className="min-h-screen bg-gray-100 flex">
+    <div className="h-screen bg-gray-100 flex">
       <Sidebar />
-      <div className="flex-1">
+      <div className="flex-1 flex flex-col">
         <TopBar />
-        <div className="p-8">
+        <div className="flex-1 p-8 overflow-auto">
           <Outlet />
         </div>
       </div>
