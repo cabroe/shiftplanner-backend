@@ -26,10 +26,10 @@ const DashboardPage = () => {
         typeResponse.json()
       ])
 
-      setEmployees(empData.data)
-      setDepartments(deptData.data)
-      setShiftTemplates(templateData.data)
-      setShiftTypes(typeData.data)
+      setEmployees(empData.data || [])
+      setDepartments(deptData.data || [])
+      setShiftTemplates(templateData.data || [])
+      setShiftTypes(typeData.data || [])
     }
 
     fetchData()
