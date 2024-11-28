@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Employee, ShiftTemplate, ShiftType } from "@/types"
+import { getColorOptions } from "@/lib/colors"
+import { Check } from "lucide-react"
 
 interface ShiftTemplateFormProps {
   shiftTemplate?: ShiftTemplate | null
@@ -29,17 +31,9 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
     ID: 0,
     name: '',
     description: '',
-    start_date: '',
-    color: '#000000',
-    employee_id: 0,
-    employee: {
-      ID: 0,
-      first_name: '',
-      last_name: '',
-      email: '',
-      department_id: 0,
-      color: ''
-    },
+    color: getColorOptions()[0].value,
+    employee_ids: [],
+    employees: [],
     monday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
     tuesday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
     wednesday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
@@ -79,7 +73,7 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
     
     const submitData = {
       ...formData,
-      employee_id: Number(formData.employee_id),
+      employee_ids: formData.employee_ids,
       monday: { shift_type_id: Number(formData.monday.shift_type_id) },
       tuesday: { shift_type_id: Number(formData.tuesday.shift_type_id) },
       wednesday: { shift_type_id: Number(formData.wednesday.shift_type_id) },
@@ -128,55 +122,90 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
       </div>
 
       <div className="grid w-full gap-2">
-        <Label htmlFor="start_date">Startdatum *</Label>
-        <Input
-          id="start_date"
-          type="date"
-          value={formData.start_date?.split('T')[0]}
-          onChange={e => setFormData({...formData, start_date: e.target.value})}
-          required
-        />
-      </div>
-
-      <div className="grid w-full gap-2">
         <Label htmlFor="color">Farbe *</Label>
-        <Input
-          id="color"
-          type="color"
+        <Select
           value={formData.color}
-          onChange={e => setFormData({...formData, color: e.target.value})}
-          required
-        />
-      </div>
-
-      <div className="grid w-full gap-2">
-        <Label htmlFor="employee">Mitarbeiter *</Label>
-        <Select 
-          value={formData.employee_id?.toString()}
-          onValueChange={value => {
-            const selectedEmployee = employees.find(emp => emp.ID.toString() === value)
-            if (selectedEmployee) {
-              setFormData({
-                ...formData,
-                employee_id: parseInt(value),
-                employee: selectedEmployee
-              })
-            }
-          }}
+          onValueChange={value => setFormData({...formData, color: value})}
           required
         >
           <SelectTrigger>
             <SelectValue>
-              {formData.employee ? 
-                `${formData.employee.first_name} ${formData.employee.last_name}` : 
-                "Mitarbeiter auswählen"
-              }
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-4 h-4 rounded-full" 
+                  style={{ backgroundColor: formData.color }}
+                />
+                {getColorOptions().find(c => c.value === formData.color)?.label || "Farbe wählen"}
+              </div>
             </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {getColorOptions().map(color => (
+              <SelectItem key={color.value} value={color.value}>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-4 h-4 rounded-full" 
+                    style={{ backgroundColor: color.value }}
+                  />
+                  {color.label}
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="grid w-full gap-2">
+        <Label htmlFor="employees">Mitarbeiter</Label>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {formData.employees.map(emp => (
+            <div 
+              key={emp.ID}
+              className="bg-primary/10 rounded px-2 py-1 text-sm flex items-center gap-1"
+            >
+              <div 
+                className="w-2 h-2 rounded-full" 
+                style={{ backgroundColor: emp.color }}
+              />
+              {emp.first_name} {emp.last_name}
+            </div>
+          ))}
+        </div>
+        <Select 
+          value={formData.employee_ids?.map(id => id.toString())[0] || ''}
+          onValueChange={value => {
+            const currentIds = formData.employee_ids || []
+            const newIds = currentIds.includes(parseInt(value))
+              ? currentIds.filter(id => id !== parseInt(value))
+              : [...currentIds, parseInt(value)]
+            
+            const selectedEmployees = employees.filter(emp => 
+              newIds.includes(emp.ID)
+            )
+            
+            setFormData({
+              ...formData,
+              employee_ids: newIds,
+              employees: selectedEmployees
+            })
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Mitarbeiter auswählen" />
           </SelectTrigger>
           <SelectContent>
             {employees.map(emp => (
               <SelectItem key={emp.ID} value={emp.ID.toString()}>
-                {`${emp.first_name} ${emp.last_name}`}
+                <div className="flex items-center gap-2 w-full">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: emp.color }}
+                  />
+                  <span>{emp.first_name} {emp.last_name}</span>
+                  {formData.employee_ids.includes(emp.ID) && (
+                    <Check className="w-4 h-4 ml-auto" />
+                  )}
+                </div>
               </SelectItem>
             ))}
           </SelectContent>

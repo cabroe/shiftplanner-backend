@@ -73,7 +73,6 @@ const ShiftTemplatesPage = () => {
             <TableHead>Name</TableHead>
             <TableHead>Beschreibung</TableHead>
             <TableHead>Mitarbeiter</TableHead>
-            <TableHead>Startdatum</TableHead>
             <TableHead>Mo</TableHead>
             <TableHead>Di</TableHead>
             <TableHead>Mi</TableHead>
@@ -90,8 +89,7 @@ const ShiftTemplatesPage = () => {
             <TableRow key={template.ID}>
               <TableCell>{template.name}</TableCell>
               <TableCell>{template.description}</TableCell>
-              <TableCell>{template.employee?.first_name} {template.employee?.last_name}</TableCell>
-              <TableCell>{new Date(template.start_date).toLocaleDateString()}</TableCell>
+              <TableCell>{template.employees?.length || 0}</TableCell>
               <TableCell>{template.monday?.shift_type?.name}</TableCell>
               <TableCell>{template.tuesday?.shift_type?.name}</TableCell>
               <TableCell>{template.wednesday?.shift_type?.name}</TableCell>
