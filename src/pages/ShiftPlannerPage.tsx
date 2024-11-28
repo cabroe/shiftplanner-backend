@@ -135,6 +135,7 @@ const ShiftPlannerPage = () => {
           </div>
           <div className="p-4 space-y-4">
             <div className="space-y-2">
+              <div className="font-medium">Schichten</div>
               {shiftTypes.map(shiftType => (
                 <div
                   key={shiftType.ID}
