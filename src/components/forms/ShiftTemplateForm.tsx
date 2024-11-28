@@ -3,13 +3,34 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Employee, ShiftTemplate, ShiftType } from "@/types"
+import { Employee, ShiftType } from "@/types"
 import { getColorOptions } from "@/lib/colors"
 import { Check } from "lucide-react"
 
 interface ShiftTemplateFormProps {
   shiftTemplate?: ShiftTemplate | null
   onSubmit: () => void
+}
+
+interface DayShift {
+  shift_type_id: number;
+  shift_type?: ShiftType;
+}
+
+interface ShiftTemplate {
+  ID: number;
+  name: string;
+  description: string;
+  color: string;
+  employee_ids: number[];
+  employees: Employee[];
+  monday: DayShift;
+  tuesday: DayShift;
+  wednesday: DayShift;
+  thursday: DayShift;
+  friday: DayShift;
+  saturday: DayShift;
+  sunday: DayShift;
 }
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
@@ -24,48 +45,54 @@ const WEEKDAYS = [
   { key: 'sunday', label: 'Sonntag' }
 ]
 
+const initialFormState: ShiftTemplate = {
+  ID: 0,
+  name: '',
+  description: '',
+  color: getColorOptions()[0].value,
+  employee_ids: [],
+  employees: [],
+  monday: { shift_type_id: 0 },
+  tuesday: { shift_type_id: 0 },
+  wednesday: { shift_type_id: 0 },
+  thursday: { shift_type_id: 0 },
+  friday: { shift_type_id: 0 },
+  saturday: { shift_type_id: 0 },
+  sunday: { shift_type_id: 0 }
+}
+
 export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateFormProps) {
   const [employees, setEmployees] = useState<Employee[]>([])
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([])
-  const [formData, setFormData] = useState<ShiftTemplate>({
-    ID: 0,
-    name: '',
-    description: '',
-    color: getColorOptions()[0].value,
-    employee_ids: [],
-    employees: [],
-    monday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    tuesday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    wednesday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    thursday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    friday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    saturday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } },
-    sunday: { shift_type_id: 0, shift_type: { ID: 0, name: '', start_time: '', end_time: '', color: '' } }
-  })
+  const [formData, setFormData] = useState<ShiftTemplate>(initialFormState)
 
   useEffect(() => {
-    const initializeForm = async () => {
-      const [empResponse, typeResponse] = await Promise.all([
-        fetch(`${API_URL}/api/employees`),
-        fetch(`${API_URL}/api/shifttypes`)
-      ])
-      
-      const [empData, typeData] = await Promise.all([
-        empResponse.json(),
-        typeResponse.json()
-      ])
-      
-      setEmployees(empData.data)
-      setShiftTypes(typeData.data)
+    const loadData = async () => {
+      try {
+        const [empResponse, typeResponse] = await Promise.all([
+          fetch(`${API_URL}/api/employees`),
+          fetch(`${API_URL}/api/shifttypes`)
+        ])
+        
+        const [empData, typeData] = await Promise.all([
+          empResponse.json(),
+          typeResponse.json()
+        ])
+        
+        setEmployees(empData.data)
+        setShiftTypes(typeData.data)
 
-      if (shiftTemplate?.ID) {
-        const templateResponse = await fetch(`${API_URL}/api/shifttemplates/${shiftTemplate.ID}`)
-        const templateData = await templateResponse.json()
-        setFormData(templateData.data)
+        if (shiftTemplate?.ID) {
+          const templateResponse = await fetch(`${API_URL}/api/shifttemplates/${shiftTemplate.ID}`)
+          const templateData = await templateResponse.json()
+          setFormData(templateData.data)
+        }
+      } catch (error) {
+        console.error('Error loading data:', error)
       }
     }
 
-    initializeForm()
+    loadData()
   }, [shiftTemplate])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,7 +100,7 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
     
     const submitData = {
       ...formData,
-      employee_ids: formData.employee_ids,
+      employee_ids: formData.employee_ids || [],
       monday: { shift_type_id: Number(formData.monday.shift_type_id) },
       tuesday: { shift_type_id: Number(formData.tuesday.shift_type_id) },
       wednesday: { shift_type_id: Number(formData.wednesday.shift_type_id) },
@@ -87,16 +114,20 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
       ? `${API_URL}/api/shifttemplates/${shiftTemplate.ID}`
       : `${API_URL}/api/shifttemplates`
     
-    const response = await fetch(url, {
-      method: shiftTemplate?.ID ? 'PUT' : 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(submitData)
-    })
+    try {
+      const response = await fetch(url, {
+        method: shiftTemplate?.ID ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(submitData)
+      })
 
-    if (response.ok) {
-      onSubmit()
+      if (response.ok) {
+        onSubmit()
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error)
     }
   }
 
@@ -158,7 +189,7 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
       <div className="grid w-full gap-2">
         <Label htmlFor="employees">Mitarbeiter</Label>
         <div className="flex flex-wrap gap-1 mb-2">
-          {formData.employees.map(emp => (
+          {(formData.employees || []).map(emp => (
             <div 
               key={emp.ID}
               className="bg-primary/10 rounded px-2 py-1 text-sm flex items-center gap-1"
@@ -172,7 +203,7 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
           ))}
         </div>
         <Select 
-          value={formData.employee_ids?.map(id => id.toString())[0] || ''}
+          value={(formData.employee_ids || []).map(id => id.toString())[0] || ''}
           onValueChange={value => {
             const currentIds = formData.employee_ids || []
             const newIds = currentIds.includes(parseInt(value))
@@ -202,7 +233,7 @@ export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateForm
                     style={{ backgroundColor: emp.color }}
                   />
                   <span>{emp.first_name} {emp.last_name}</span>
-                  {formData.employee_ids.includes(emp.ID) && (
+                  {(formData.employee_ids || []).includes(emp.ID) && (
                     <Check className="w-4 h-4 ml-auto" />
                   )}
                 </div>
