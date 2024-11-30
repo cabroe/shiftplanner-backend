@@ -1,19 +1,17 @@
-import { Outlet } from 'react-router-dom';
-import Sidebar from '@/components/Sidebar';
-import TopBar from '@/components/TopBar';
+import { Outlet } from 'react-router-dom'
+import Sidebar from '@/components/sidebar/Sidebar'
+import TopBar from '@/components/layout/TopBar'
 
-const Dashboard = () => {
+export default function Dashboard() {
   return (
-    <div className="h-screen bg-gray-100 flex">
+    <div className="h-screen bg-muted/30 flex">
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <TopBar />
-        <div className="flex-1 p-8 overflow-auto">
+        <main className="flex-1 p-8 overflow-auto">
           <Outlet />
-        </div>
+        </main>
       </div>
     </div>
-  );
-};
-
-export default Dashboard;
+  )
+}

@@ -1,110 +1,94 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Logo from '@/components/Logo';
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import Logo from '@/components/Logo'
 
-const LoginPage = () => {
-  const navigate = useNavigate();
+export default function LoginPage() {
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-  });
+    rememberMe: false
+  })
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    // Hier kommt später die Login-Logik
-    navigate('/dashboard');
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+    e.preventDefault()
+    // TODO: Implement actual login logic
+    navigate('/')
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="flex justify-center">
-          <Logo className="w-20 h-20" />
-        </div>
-        <h2 className="mt-6 text-center text-3xl font-bold text-gray-900">
-          ShiftPlanner Login
-        </h2>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                E-Mail
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.email}
-                  onChange={handleChange}
-                />
-              </div>
+    <div className="min-h-screen bg-muted/30 grid place-items-center p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader className="space-y-1 text-center">
+          <div className="flex justify-center mb-4">
+            <Logo className="w-20 h-20" />
+          </div>
+          <CardTitle className="text-2xl">ShiftPlanner</CardTitle>
+          <CardDescription>
+            Melden Sie sich an, um Ihre Schichtpläne zu verwalten
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="name@firma.de"
+                value={formData.email}
+                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
             </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Passwort
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  value={formData.password}
-                  onChange={handleChange}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900">
-                  Angemeldet bleiben
-                </label>
-              </div>
-
-              <div className="text-sm">
-                <a href="#" className="font-medium text-blue-600 hover:text-blue-500">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Passwort</Label>
+                <Button 
+                  variant="link" 
+                  className="px-0 font-normal"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    // TODO: Implement password reset
+                  }}
+                >
                   Passwort vergessen?
-                </a>
+                </Button>
               </div>
+              <Input
+                id="password"
+                type="password"
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+                required
+              />
             </div>
 
-            <div>
-              <button
-                type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                Anmelden
-              </button>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="remember"
+                checked={formData.rememberMe}
+                onCheckedChange={checked => 
+                  setFormData({ ...formData, rememberMe: checked })
+                }
+              />
+              <Label htmlFor="remember" className="font-normal">
+                Angemeldet bleiben
+              </Label>
             </div>
+
+            <Button type="submit" className="w-full">
+              Anmelden
+            </Button>
           </form>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
-  );
-};
-
-export default LoginPage;
+  )
+}

@@ -1,191 +1,123 @@
-import { useEffect, useState } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState, useMemo } from "react"
 import { Employee, ShiftType, ShiftTemplate } from "@/types"
-import { Button } from "@/components/ui/button"
-import { Pencil } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ShiftTemplateForm } from "@/components/forms/ShiftTemplateForm"
+import { startOfWeek, addDays, format } from "date-fns"
+import { ShiftPlannerHeader } from "@/components/shift-planner/ShiftPlannerHeader"
+import { EmployeeList } from "@/components/shift-planner/EmployeeList"
+import { ShiftGrid } from "@/components/shift-planner/ShiftGrid"
+import { ShiftTemplatesPanel } from "@/components/shift-planner/ShiftTemplatesPanel"
+import { useEmployees } from "@/hooks/useEmployees"
+import { useShiftTypes } from "@/hooks/useShiftTypes"
+import { useShiftTemplates } from "@/hooks/useShiftTemplates"
+import { useShiftPlanner } from "@/hooks/useShiftPlanner"
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
-const ShiftPlannerPage = () => {
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([])
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([])
+export default function ShiftPlannerPage() {
+  const { employees } = useEmployees()
+  const { shiftTypes } = useShiftTypes()
+  const { shiftTemplates } = useShiftTemplates()
+  const { assignments, addAssignment, removeAssignment } = useShiftPlanner()
+  
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedTemplate, setSelectedTemplate] = useState<ShiftTemplate | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [draggedItem, setDraggedItem] = useState<ShiftType | ShiftTemplate | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const loadData = async () => {
-    const [empResponse, shiftResponse, templateResponse] = await Promise.all([
-      fetch(`${API_URL}/api/employees`),
-      fetch(`${API_URL}/api/shifttypes`),
-      fetch(`${API_URL}/api/shifttemplates`)
-    ])
-    const [empData, shiftData, templateData] = await Promise.all([
-      empResponse.json(),
-      shiftResponse.json(),
-      templateResponse.json()
-    ])
-    setEmployees(empData.data)
-    setShiftTypes(shiftData.data)
-    setShiftTemplates(templateData.data)
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const handleEdit = (template: ShiftTemplate) => {
-    setSelectedTemplate(template)
-    setIsDialogOpen(true)
-  }
-
-  const getDaysInMonth = () => {
+  const weekDays = useMemo(() => {
     const days = []
-    const startDate = new Date(currentDate)
+    const start = startOfWeek(currentDate, { weekStartsOn: 1 })
     
-    while (startDate.getDay() !== 1) {
-      startDate.setDate(startDate.getDate() - 1)
-    }
-    
-    for (let i = 0; i < 28; i++) {
-      const date = new Date(startDate)
-      date.setDate(startDate.getDate() + i)
-      days.push(date)
+    for (let i = 0; i < 7; i++) {
+      days.push(addDays(start, i))
     }
     return days
-  }
+  }, [currentDate])
+
+  const filteredEmployees = useMemo(() => {
+    if (!searchQuery) return employees
+    
+    const query = searchQuery.toLowerCase()
+    return employees.filter(employee => 
+      employee.first_name.toLowerCase().includes(query) ||
+      employee.last_name.toLowerCase().includes(query) ||
+      employee.email.toLowerCase().includes(query) ||
+      employee.department?.name?.toLowerCase().includes(query)
+    )
+  }, [employees, searchQuery])
 
   const handleDragStart = (e: React.DragEvent, item: ShiftType | ShiftTemplate) => {
     e.dataTransfer.setData('text/plain', JSON.stringify(item))
+    setDraggedItem(item)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    const target = e.target as HTMLElement
+    if (target.classList.contains('shift-cell')) {
+      target.classList.add('bg-primary/10')
+    }
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    const target = e.target as HTMLElement
+    if (target.classList.contains('shift-cell')) {
+      target.classList.remove('bg-primary/10')
+    }
+  }
+
+  const handleDrop = (e: React.DragEvent, employeeId: number, date: Date) => {
+    e.preventDefault()
+    const target = e.target as HTMLElement
+    target.classList.remove('bg-primary/10')
+    
+    if (!draggedItem) return
+
+    const dateStr = format(date, 'yyyy-MM-dd')
+    addAssignment(employeeId, dateStr, draggedItem)
+    setDraggedItem(null)
   }
 
   return (
-    <div className="flex flex-col h-full">      
-      <div className="grid grid-cols-[200px_minmax(0,1fr)_250px] gap-4 flex-1">
-            {/* Mitarbeiterspalte */}
-        <div>
-          <div className="h-10 font-bold bg-gray-100 flex items-center px-2 border-b">
-            Mitarbeiter
-          </div>
-          <div className="divide-y">
-            {employees.map(employee => (
-              <div 
-                key={employee.ID} 
-                className="h-16 flex items-center px-2"
-              >
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: employee.color }}
-                  />
-                  {employee.first_name} {employee.last_name}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="flex flex-col h-full gap-4">
+      <ShiftPlannerHeader 
+        currentDate={currentDate}
+        weekDays={weekDays}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        onDateChange={setCurrentDate}
+        employees={employees}
+        onEmployeeSelect={(employee) => {
+          setSearchQuery(`${employee.first_name} ${employee.last_name}`)
+        }}
+      />
 
-        {/* Schichtplan-Tabelle */}
-        <div className="bg-white border rounded-lg">
-          <Table className="w-full table-fixed">
-            <TableHeader>
-              <TableRow>
-                {getDaysInMonth().map(date => (
-                  <TableHead 
-                    key={date.toISOString()} 
-                    className={`h-10 text-center bg-gray-100 ${
-                      date.getDay() === 0 || date.getDay() === 6 ? 'bg-gray-50' : ''
-                    }`}
-                  >
-                    {`${date.toLocaleDateString('de-DE', { weekday: 'short' }).slice(0, 2)} ${date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}`}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {employees.map(employee => (
-                <TableRow key={employee.ID}>
-                  {getDaysInMonth().map(date => (
-                    <TableCell 
-                      key={`${employee.ID}-${date.toISOString()}`}
-                      className={`h-16 p-1 ${
-                        date.getDay() === 0 || date.getDay() === 6 ? 'bg-gray-50' : ''
-                      }`}
-                    >
-                      <div 
-                        className="h-full rounded border-2 border-dashed border-gray-200 
-                                hover:border-primary hover:bg-primary/5 transition-colors
-                                flex items-center justify-center"
-                      >
-                      </div>
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+      <div className="grid grid-cols-[250px_1fr_300px] gap-4 min-h-0 flex-1">
+        <EmployeeList 
+          employees={employees}
+          filteredEmployees={filteredEmployees}
+          searchQuery={searchQuery}
+        />
 
-        {/* Schichtvorlagen Widget */}
-        <div className="bg-white border rounded-lg overflow-auto">
-          <div className="h-10 font-bold bg-gray-100 flex items-center px-2 border-b sticky top-0">
-            Schichtvorlagen
-          </div>
-          <div className="p-4 space-y-4">
-            <div className="space-y-2">
-              <div className="font-medium">Schichten</div>
-              {shiftTypes.map(shiftType => (
-                <div
-                  key={shiftType.ID}
-                  className="h-16 p-2 rounded cursor-move"
-                  style={{ 
-                    backgroundColor: shiftType.color,
-                    opacity: 0.9
-                  }}
-                  draggable="true"
-                  onDragStart={(e) => handleDragStart(e, shiftType)}
-                >
-                  <div className="text-white font-medium">
-                    {shiftType.name}
-                    <div className="text-sm opacity-90">
-                      {shiftType.start_time} - {shiftType.end_time}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+        <ShiftGrid 
+          weekDays={weekDays}
+          employees={filteredEmployees}
+          assignments={assignments}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onRemoveShift={removeAssignment}
+        />
 
-            <div className="space-y-2">
-              <div className="font-medium">Vorlagen</div>
-              {shiftTemplates.map(template => (
-                <div
-                  key={template.ID}
-                  className="p-2 rounded cursor-move border group relative"
-                  style={{ 
-                    backgroundColor: template.color,
-                    opacity: 0.9
-                  }}
-                  draggable="true"
-                  onDragStart={(e) => handleDragStart(e, template)}
-                >
-                  <div className="font-medium text-white">
-                    {template.name}
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100"
-                    onClick={() => handleEdit(template)}
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ShiftTemplatesPanel 
+          shiftTypes={shiftTypes}
+          shiftTemplates={shiftTemplates}
+          onDragStart={handleDragStart}
+          onEditTemplate={(template) => {
+            setSelectedTemplate(template)
+            setIsDialogOpen(true)
+          }}
+        />
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -200,7 +132,6 @@ const ShiftPlannerPage = () => {
             onSubmit={() => {
               setIsDialogOpen(false)
               setSelectedTemplate(null)
-              loadData()
             }}
           />
         </DialogContent>
@@ -208,5 +139,3 @@ const ShiftPlannerPage = () => {
     </div>
   )
 }
-
-export default ShiftPlannerPage

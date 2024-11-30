@@ -1,110 +1,96 @@
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { EmployeeForm } from "@/components/forms/EmployeeForm"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { PlusCircle, Pencil, Trash2 } from "lucide-react"
+import { useState } from "react"
 import { Employee } from "@/types"
+import { useEmployees } from "@/hooks/useEmployees"
+import { PageHeader } from "@/components/shared/PageHeader"
+import { DataTable } from "@/components/shared/DataTable"
+import { ColorBadge } from "@/components/shared/ColorBadge"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { EmployeeForm } from "@/components/forms/EmployeeForm"
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
-const EmployeesPage = () => {
-  const [employees, setEmployees] = useState<Employee[]>([])
+export default function EmployeesPage() {
+  const { employees, isLoading, deleteEmployee, refreshEmployees } = useEmployees()
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [employeeToDelete, setEmployeeToDelete] = useState<Employee | null>(null)
 
-  useEffect(() => {
-    loadEmployees()
-  }, [])
-
-  const loadEmployees = () => {
-    fetch(`${API_URL}/api/employees`)
-      .then(res => res.json())
-      .then(response => setEmployees(response.data))
-  }
-
-  const handleDelete = (id: number) => {
-    if (confirm('Mitarbeiter wirklich löschen?')) {
-      fetch(`${API_URL}/api/employees/${id}`, {
-        method: 'DELETE'
-      }).then(() => loadEmployees())
+  const columns = [
+    {
+      header: "Name",
+      accessor: (employee: Employee) => `${employee.first_name} ${employee.last_name}`
+    },
+    { header: "Email", accessor: "email" as const },
+    { 
+      header: "Abteilung", 
+      accessor: (employee: Employee) => employee.department?.name || "-"
+    },
+    {
+      header: "Farbe",
+      accessor: (employee: Employee) => (
+        <ColorBadge color={employee.color} />
+      )
     }
+  ]
+
+  const handleDelete = async (employee: Employee) => {
+    setEmployeeToDelete(employee)
+    setIsDeleteDialogOpen(true)
   }
 
-  const handleEdit = (employee: Employee) => {
-    setSelectedEmployee(employee)
-    setIsDialogOpen(true)
-  }
-
-  const handleFormSubmit = () => {
-    setIsDialogOpen(false)
-    setSelectedEmployee(null)
-    loadEmployees()
+  const confirmDelete = async () => {
+    if (employeeToDelete) {
+      await deleteEmployee(employeeToDelete.ID)
+      refreshEmployees()
+    }
   }
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Mitarbeiter</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setSelectedEmployee(null)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Neuer Mitarbeiter
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                {selectedEmployee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}
-              </DialogTitle>
-            </DialogHeader>
-            <EmployeeForm 
-              employee={selectedEmployee} 
-              onSubmit={handleFormSubmit}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <PageHeader 
+        title="Mitarbeiter"
+        onAdd={() => {
+          setSelectedEmployee(null)
+          setIsFormOpen(true)
+        }}
+        addButtonText="Neuer Mitarbeiter"
+      />
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Abteilung</TableHead>
-            <TableHead>Farbe</TableHead>
-            <TableHead className="w-[100px]">Aktionen</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {employees.map(employee => (
-            <TableRow key={employee.ID}>
-              <TableCell>{employee.first_name} {employee.last_name}</TableCell>
-              <TableCell>{employee.email}</TableCell>
-              <TableCell>{employee.department?.name}</TableCell>
-              <TableCell>
-                <div 
-                  className="w-6 h-6 rounded-full" 
-                  style={{ backgroundColor: employee.color }}
-                />
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(employee)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(employee.ID)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <DataTable
+        data={employees}
+        columns={columns}
+        onEdit={(employee) => {
+          setSelectedEmployee(employee)
+          setIsFormOpen(true)
+        }}
+        onDelete={handleDelete}
+      />
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {selectedEmployee ? 'Mitarbeiter bearbeiten' : 'Neuer Mitarbeiter'}
+            </DialogTitle>
+          </DialogHeader>
+          <EmployeeForm 
+            employee={selectedEmployee} 
+            onSubmit={() => {
+              setIsFormOpen(false)
+              refreshEmployees()
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+        title="Mitarbeiter löschen"
+        description={`Möchten Sie den Mitarbeiter "${employeeToDelete?.first_name} ${employeeToDelete?.last_name}" wirklich löschen?`}
+        onConfirm={confirmDelete}
+        variant="destructive"
+      />
     </div>
   )
 }
-
-export default EmployeesPage

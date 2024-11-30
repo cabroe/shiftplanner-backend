@@ -1,159 +1,110 @@
 import { useState, useEffect } from "react"
+import { Employee } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Employee, Department } from "@/types"
-import { getColorOptions } from "@/lib/colors"
+import { FormField } from "./shared/FormField"
+import { ColorSelect } from "./shared/ColorSelect"
+import { DepartmentSelect } from "./shared/DepartmentSelect"
+import { EmployeeCard } from "@/components/employees/EmployeeCard"
+import { postApi, putApi } from "@/lib/api"
 
 interface EmployeeFormProps {
   employee?: Employee | null
   onSubmit: () => void
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+const initialFormData: Employee = {
+  ID: 0,
+  first_name: '',
+  last_name: '',
+  email: '',
+  department_id: 0,
+  color: '#3b82f6'
+}
 
 export function EmployeeForm({ employee, onSubmit }: EmployeeFormProps) {
-  const [departments, setDepartments] = useState<Department[]>([])
-  const [formData, setFormData] = useState<Employee>({
-    ID: 0,
-    first_name: '',
-    last_name: '',
-    email: '',
-    department_id: 0,
-    color: getColorOptions()[0].value
-  })
+  const [formData, setFormData] = useState<Employee>(initialFormData)
 
   useEffect(() => {
-    const initializeForm = async () => {
-      const deptResponse = await fetch(`${API_URL}/api/departments`)
-      const deptData = await deptResponse.json()
-      setDepartments(deptData.data)
-
-      if (employee?.ID) {
-        const empResponse = await fetch(`${API_URL}/api/employees/${employee.ID}`)
-        const empData = await empResponse.json()
-        setFormData(empData.data)
-      }
+    if (employee) {
+      setFormData({
+        ...employee,
+        department_id: employee.department_id || 0
+      })
+    } else {
+      setFormData(initialFormData)
     }
-    
-    initializeForm()
   }, [employee])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const url = employee?.ID 
-      ? `${API_URL}/api/employees/${employee.ID}`
-      : `${API_URL}/api/employees`
-    
-    const response = await fetch(url, {
-      method: employee?.ID ? 'PUT' : 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData)
-    })
-
-    if (response.ok) {
+    try {
+      if (employee?.ID) {
+        await putApi(`employees/${employee.ID}`, formData)
+      } else {
+        await postApi('employees', formData)
+      }
       onSubmit()
+    } catch (error) {
+      console.error('Error submitting form:', error)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid w-full gap-2">
-        <Label htmlFor="first_name">Vorname *</Label>
-        <Input
-          id="first_name"
-          value={formData.first_name}
-          onChange={e => setFormData({...formData, first_name: e.target.value})}
-          required
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <EmployeeCard 
+        employee={formData} 
+        className="bg-muted/50"
+      />
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="last_name">Nachname *</Label>
-        <Input
-          id="last_name"
-          value={formData.last_name}
-          onChange={e => setFormData({...formData, last_name: e.target.value})}
-          required
-        />
-      </div>
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <FormField label="Vorname" required>
+            <Input
+              value={formData.first_name}
+              onChange={e => setFormData({...formData, first_name: e.target.value})}
+              required
+            />
+          </FormField>
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="email">Email *</Label>
-        <Input
-          id="email"
-          type="email"
-          value={formData.email}
-          onChange={e => setFormData({...formData, email: e.target.value})}
-          required
-        />
-      </div>
+          <FormField label="Nachname" required>
+            <Input
+              value={formData.last_name}
+              onChange={e => setFormData({...formData, last_name: e.target.value})}
+              required
+            />
+          </FormField>
+        </div>
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="department">Abteilung *</Label>
-        <Select 
-          value={formData.department_id?.toString()}
-          onValueChange={value => {
-            const selectedDepartment = departments.find(dept => dept.ID.toString() === value)
-            setFormData({
+        <FormField label="Email" required>
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={e => setFormData({...formData, email: e.target.value})}
+            required
+          />
+        </FormField>
+
+        <FormField label="Abteilung" required>
+          <DepartmentSelect
+            value={formData.department_id}
+            onChange={value => setFormData({
               ...formData, 
-              department_id: parseInt(value),
-              department: selectedDepartment
-            })
-          }}
-          required
-        >
-          <SelectTrigger>
-            <SelectValue>
-              {formData.department?.name || "Abteilung auswählen"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {departments.map(dept => (
-              <SelectItem key={dept.ID} value={dept.ID.toString()}>
-                {dept.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+              department_id: value,
+              department: undefined // Clear cached department data
+            })}
+            required
+          />
+        </FormField>
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="color">Farbe *</Label>
-        <Select
-          value={formData.color}
-          onValueChange={value => setFormData({...formData, color: value})}
-          required
-        >
-          <SelectTrigger>
-            <SelectValue>
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-4 h-4 rounded-full" 
-                  style={{ backgroundColor: formData.color }}
-                />
-                {getColorOptions().find(c => c.value === formData.color)?.label || "Farbe wählen"}
-              </div>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getColorOptions().map(color => (
-              <SelectItem key={color.value} value={color.value}>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: color.value }}
-                  />
-                  {color.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FormField label="Farbe" required>
+          <ColorSelect
+            value={formData.color}
+            onChange={value => setFormData({...formData, color: value})}
+            required
+          />
+        </FormField>
       </div>
 
       <Button type="submit" className="w-full">

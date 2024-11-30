@@ -1,112 +1,80 @@
 import { useState, useEffect } from "react"
+import { Department } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Department } from "@/types"
-import { getColorOptions } from "@/lib/colors"
+import { FormField } from "./shared/FormField"
+import { ColorSelect } from "./shared/ColorSelect"
+import { DepartmentCard } from "@/components/departments/DepartmentCard"
+import { postApi, putApi } from "@/lib/api"
 
 interface DepartmentFormProps {
   department?: Department | null
   onSubmit: () => void
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+const initialFormData: Department = {
+  ID: 0,
+  name: '',
+  description: '',
+  color: '#3b82f6'
+}
 
 export function DepartmentForm({ department, onSubmit }: DepartmentFormProps) {
-  const [formData, setFormData] = useState<Department>({
-    ID: 0,
-    name: '',
-    description: '',
-    color: getColorOptions()[0].value
-  })
+  const [formData, setFormData] = useState<Department>(initialFormData)
 
   useEffect(() => {
-    const initializeForm = async () => {
-      if (department?.ID) {
-        const response = await fetch(`${API_URL}/api/departments/${department.ID}`)
-        const data = await response.json()
-        setFormData(data.data)
-      }
+    if (department) {
+      setFormData(department)
     }
-    
-    initializeForm()
   }, [department])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const url = department?.ID 
-      ? `${API_URL}/api/departments/${department.ID}`
-      : `${API_URL}/api/departments`
-    
-    const response = await fetch(url, {
-      method: department?.ID ? 'PUT' : 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(formData)
-    })
-
-    if (response.ok) {
+    try {
+      if (department?.ID) {
+        await putApi(`departments/${department.ID}`, formData)
+      } else {
+        await postApi('departments', formData)
+      }
       onSubmit()
+    } catch (error) {
+      console.error('Error submitting form:', error)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid w-full gap-2">
-        <Label htmlFor="name">Name *</Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={e => setFormData({...formData, name: e.target.value})}
-          required
-        />
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <DepartmentCard 
+        department={formData} 
+        className="bg-muted/50"
+      />
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="description">Beschreibung</Label>
-        <Textarea
-          id="description"
-          value={formData.description}
-          onChange={e => setFormData({...formData, description: e.target.value})}
-        />
-      </div>
+      <div className="space-y-4">
+        <FormField label="Name" required>
+          <Input
+            value={formData.name}
+            onChange={e => setFormData({...formData, name: e.target.value})}
+            required
+          />
+        </FormField>
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="color">Farbe *</Label>
-        <Select
-          value={formData.color}
-          onValueChange={value => setFormData({...formData, color: value})}
-          required
-        >
-          <SelectTrigger>
-            <SelectValue>
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-4 h-4 rounded-full" 
-                  style={{ backgroundColor: formData.color }}
-                />
-                {getColorOptions().find(c => c.value === formData.color)?.label || "Farbe wählen"}
-              </div>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getColorOptions().map(color => (
-              <SelectItem key={color.value} value={color.value}>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: color.value }}
-                  />
-                  {color.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FormField label="Beschreibung">
+          <Textarea
+            value={formData.description}
+            onChange={e => setFormData({...formData, description: e.target.value})}
+            placeholder="Optionale Beschreibung der Abteilung"
+          />
+        </FormField>
+
+        <FormField label="Farbe" required>
+          <ColorSelect
+            value={formData.color}
+            onChange={value => setFormData({...formData, color: value})}
+            required
+          />
+        </FormField>
       </div>
 
       <Button type="submit" className="w-full">

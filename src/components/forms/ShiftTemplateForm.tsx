@@ -1,55 +1,35 @@
 import { useState, useEffect } from "react"
+import { ShiftTemplate, Employee } from "@/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Employee, ShiftType } from "@/types"
-import { getColorOptions } from "@/lib/colors"
-import { Check } from "lucide-react"
+import { Textarea } from "@/components/ui/textarea"
+import { FormField } from "./shared/FormField"
+import { ColorSelect } from "./shared/ColorSelect"
+import { ShiftTypeSelect } from "./shared/ShiftTypeSelect"
+import { EmployeeSelect } from "./shared/EmployeeSelect"
+import { WeekdayShifts } from "@/components/shift-templates/WeekdayShifts"
+import { postApi, putApi } from "@/lib/api"
 
 interface ShiftTemplateFormProps {
   shiftTemplate?: ShiftTemplate | null
   onSubmit: () => void
 }
 
-interface DayShift {
-  shift_type_id: number;
-  shift_type?: ShiftType;
-}
-
-interface ShiftTemplate {
-  ID: number;
-  name: string;
-  description: string;
-  color: string;
-  employee_ids: number[];
-  employees: Employee[];
-  monday: DayShift;
-  tuesday: DayShift;
-  wednesday: DayShift;
-  thursday: DayShift;
-  friday: DayShift;
-  saturday: DayShift;
-  sunday: DayShift;
-}
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
-
 const WEEKDAYS = [
-  { key: 'monday', label: 'Montag' },
-  { key: 'tuesday', label: 'Dienstag' },
-  { key: 'wednesday', label: 'Mittwoch' },
-  { key: 'thursday', label: 'Donnerstag' },
-  { key: 'friday', label: 'Freitag' },
-  { key: 'saturday', label: 'Samstag' },
-  { key: 'sunday', label: 'Sonntag' }
-]
+  { key: 'monday', label: 'Montag', day: 1 },
+  { key: 'tuesday', label: 'Dienstag', day: 2 },
+  { key: 'wednesday', label: 'Mittwoch', day: 3 },
+  { key: 'thursday', label: 'Donnerstag', day: 4 },
+  { key: 'friday', label: 'Freitag', day: 5 },
+  { key: 'saturday', label: 'Samstag', day: 6 },
+  { key: 'sunday', label: 'Sonntag', day: 0 }
+] as const
 
-const initialFormState: ShiftTemplate = {
+const initialFormData: ShiftTemplate = {
   ID: 0,
   name: '',
   description: '',
-  color: getColorOptions()[0].value,
+  color: '#3b82f6',
   employee_ids: [],
   employees: [],
   monday: { shift_type_id: 0 },
@@ -62,219 +42,118 @@ const initialFormState: ShiftTemplate = {
 }
 
 export function ShiftTemplateForm({ shiftTemplate, onSubmit }: ShiftTemplateFormProps) {
-  const [employees, setEmployees] = useState<Employee[]>([])
-  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([])
-  const [formData, setFormData] = useState<ShiftTemplate>(initialFormState)
+  const [formData, setFormData] = useState<ShiftTemplate>(initialFormData)
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [empResponse, typeResponse] = await Promise.all([
-          fetch(`${API_URL}/api/employees`),
-          fetch(`${API_URL}/api/shifttypes`)
-        ])
-        
-        const [empData, typeData] = await Promise.all([
-          empResponse.json(),
-          typeResponse.json()
-        ])
-        
-        setEmployees(empData.data)
-        setShiftTypes(typeData.data)
-
-        if (shiftTemplate?.ID) {
-          const templateResponse = await fetch(`${API_URL}/api/shifttemplates/${shiftTemplate.ID}`)
-          const templateData = await templateResponse.json()
-          setFormData(templateData.data)
-        }
-      } catch (error) {
-        console.error('Error loading data:', error)
-      }
+    if (shiftTemplate) {
+      setFormData(shiftTemplate)
+    } else {
+      setFormData(initialFormData)
     }
-
-    loadData()
   }, [shiftTemplate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    const submitData = {
-      ...formData,
-      employee_ids: formData.employee_ids || [],
-      monday: { shift_type_id: Number(formData.monday.shift_type_id) },
-      tuesday: { shift_type_id: Number(formData.tuesday.shift_type_id) },
-      wednesday: { shift_type_id: Number(formData.wednesday.shift_type_id) },
-      thursday: { shift_type_id: Number(formData.thursday.shift_type_id) },
-      friday: { shift_type_id: Number(formData.friday.shift_type_id) },
-      saturday: { shift_type_id: Number(formData.saturday.shift_type_id) },
-      sunday: { shift_type_id: Number(formData.sunday.shift_type_id) }
-    }
-    
-    const url = shiftTemplate?.ID 
-      ? `${API_URL}/api/shifttemplates/${shiftTemplate.ID}`
-      : `${API_URL}/api/shifttemplates`
-    
     try {
-      const response = await fetch(url, {
-        method: shiftTemplate?.ID ? 'PUT' : 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submitData)
-      })
+      // Transform the data to match the API format
+      const shifts = WEEKDAYS.map(({ day, key }) => ({
+        day,
+        shift_type_id: (formData[key as keyof typeof formData] as any).shift_type_id
+      })).filter(shift => shift.shift_type_id !== 0)
 
-      if (response.ok) {
-        onSubmit()
+      const submitData = {
+        name: formData.name,
+        description: formData.description,
+        color: formData.color,
+        shifts
       }
+
+      if (shiftTemplate?.ID) {
+        await putApi(`shifttemplates/${shiftTemplate.ID}`, submitData)
+      } else {
+        await postApi('shifttemplates', submitData)
+      }
+      onSubmit()
     } catch (error) {
       console.error('Error submitting form:', error)
     }
   }
 
+  const handleEmployeeChange = (employees: Employee[]) => {
+    setFormData({
+      ...formData,
+      employee_ids: employees.map(emp => emp.ID),
+      employees
+    })
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="grid w-full gap-2">
-        <Label htmlFor="name">Name *</Label>
-        <Input
-          id="name"
-          value={formData.name}
-          onChange={e => setFormData({...formData, name: e.target.value})}
-          required
-        />
-      </div>
-
-      <div className="grid w-full gap-2">
-        <Label htmlFor="description">Beschreibung</Label>
-        <Input
-          id="description"
-          value={formData.description}
-          onChange={e => setFormData({...formData, description: e.target.value})}
-        />
-      </div>
-
-      <div className="grid w-full gap-2">
-        <Label htmlFor="color">Farbe *</Label>
-        <Select
-          value={formData.color}
-          onValueChange={value => setFormData({...formData, color: value})}
-          required
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="p-4 bg-muted/50 rounded-lg">
+        <div className="mb-2 font-medium">Vorschau</div>
+        <div 
+          className="p-3 rounded-md"
+          style={{ backgroundColor: formData.color }}
         >
-          <SelectTrigger>
-            <SelectValue>
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-4 h-4 rounded-full" 
-                  style={{ backgroundColor: formData.color }}
-                />
-                {getColorOptions().find(c => c.value === formData.color)?.label || "Farbe wählen"}
-              </div>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {getColorOptions().map(color => (
-              <SelectItem key={color.value} value={color.value}>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-4 h-4 rounded-full" 
-                    style={{ backgroundColor: color.value }}
-                  />
-                  {color.label}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <div className="text-white font-medium">
+            {formData.name || 'Neue Vorlage'}
+          </div>
+          <div className="mt-2">
+            <WeekdayShifts template={formData} />
+          </div>
+        </div>
       </div>
 
-      <div className="grid w-full gap-2">
-        <Label htmlFor="employees">Mitarbeiter</Label>
-        <div className="flex flex-wrap gap-1 mb-2">
-          {(formData.employees || []).map(emp => (
-            <div 
-              key={emp.ID}
-              className="bg-primary/10 rounded px-2 py-1 text-sm flex items-center gap-1"
-            >
-              <div 
-                className="w-2 h-2 rounded-full" 
-                style={{ backgroundColor: emp.color }}
+      <div className="space-y-4">
+        <FormField label="Name" required>
+          <Input
+            value={formData.name}
+            onChange={e => setFormData({...formData, name: e.target.value})}
+            required
+          />
+        </FormField>
+
+        <FormField label="Beschreibung">
+          <Textarea
+            value={formData.description}
+            onChange={e => setFormData({...formData, description: e.target.value})}
+          />
+        </FormField>
+
+        <FormField label="Mitarbeiter">
+          <EmployeeSelect
+            value={formData.employees}
+            onChange={handleEmployeeChange}
+          />
+        </FormField>
+
+        <FormField label="Farbe" required>
+          <ColorSelect
+            value={formData.color}
+            onChange={value => setFormData({...formData, color: value})}
+            required
+          />
+        </FormField>
+
+        <div className="space-y-4">
+          <div className="font-medium">Wochenplan</div>
+          {WEEKDAYS.map(({ key, label }) => (
+            <FormField key={key} label={label}>
+              <ShiftTypeSelect
+                value={(formData[key as keyof typeof formData] as any).shift_type_id}
+                onChange={value => setFormData({
+                  ...formData,
+                  [key]: { 
+                    shift_type_id: value,
+                    shift_type: undefined // Clear cached shift type data
+                  }
+                })}
               />
-              {emp.first_name} {emp.last_name}
-            </div>
+            </FormField>
           ))}
         </div>
-        <Select 
-          value={(formData.employee_ids || []).map(id => id.toString())[0] || ''}
-          onValueChange={value => {
-            const currentIds = formData.employee_ids || []
-            const newIds = currentIds.includes(parseInt(value))
-              ? currentIds.filter(id => id !== parseInt(value))
-              : [...currentIds, parseInt(value)]
-            
-            const selectedEmployees = employees.filter(emp => 
-              newIds.includes(emp.ID)
-            )
-            
-            setFormData({
-              ...formData,
-              employee_ids: newIds,
-              employees: selectedEmployees
-            })
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Mitarbeiter auswählen" />
-          </SelectTrigger>
-          <SelectContent>
-            {employees.map(emp => (
-              <SelectItem key={emp.ID} value={emp.ID.toString()}>
-                <div className="flex items-center gap-2 w-full">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: emp.color }}
-                  />
-                  <span>{emp.first_name} {emp.last_name}</span>
-                  {(formData.employee_ids || []).includes(emp.ID) && (
-                    <Check className="w-4 h-4 ml-auto" />
-                  )}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
-
-      {WEEKDAYS.map(({ key, label }) => (
-        <div key={key} className="grid w-full gap-2">
-          <Label htmlFor={key}>{label} *</Label>
-          <Select 
-            value={(formData[key as keyof typeof formData] as { shift_type_id: number })?.shift_type_id?.toString()}
-            onValueChange={value => {
-              const selectedShiftType = shiftTypes.find(type => type.ID.toString() === value)
-              setFormData({
-                ...formData,
-                [key]: { 
-                  shift_type_id: parseInt(value),
-                  shift_type: selectedShiftType
-                }
-              })
-            }}
-            required
-          >
-            <SelectTrigger>
-              <SelectValue>
-                {(formData[key as keyof typeof formData] as any)?.shift_type?.name || "Schichttyp auswählen"}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {shiftTypes.map(type => (
-                <SelectItem key={type.ID} value={type.ID.toString()}>
-                  {type.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      ))}
 
       <Button type="submit" className="w-full">
         {shiftTemplate?.ID ? 'Aktualisieren' : 'Erstellen'}

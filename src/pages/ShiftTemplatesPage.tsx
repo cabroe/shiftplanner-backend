@@ -1,124 +1,95 @@
-import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ShiftTemplateForm } from "@/components/forms/ShiftTemplateForm"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { PlusCircle, Pencil, Trash2 } from "lucide-react"
+import { useState } from "react"
 import { ShiftTemplate } from "@/types"
+import { useShiftTemplates } from "@/hooks/useShiftTemplates"
+import { PageHeader } from "@/components/shared/PageHeader"
+import { DataTable } from "@/components/shared/DataTable"
+import { ColorBadge } from "@/components/shared/ColorBadge"
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ShiftTemplateForm } from "@/components/forms/ShiftTemplateForm"
+import { WeekdayShifts } from "@/components/shift-templates/WeekdayShifts"
+import { useDialog } from "@/lib/hooks/useDialog"
+import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog"
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+export default function ShiftTemplatesPage() {
+  const { shiftTemplates, isLoading, deleteShiftTemplate, refreshShiftTemplates } = useShiftTemplates()
+  const formDialog = useDialog<ShiftTemplate>()
+  const confirmDialog = useConfirmDialog<ShiftTemplate>()
 
-const ShiftTemplatesPage = () => {
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>([])
-  const [selectedShiftTemplate, setSelectedShiftTemplate] = useState<ShiftTemplate | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-
-  useEffect(() => {
-    loadShiftTemplates()
-  }, [])
-
-  const loadShiftTemplates = () => {
-    fetch(`${API_URL}/api/shifttemplates`)
-      .then(res => res.json())
-      .then(response => setShiftTemplates(response.data))
-  }
-
-  const handleDelete = (id: number) => {
-    if (confirm('Schichtvorlage wirklich löschen?')) {
-      fetch(`${API_URL}/api/shifttemplates/${id}`, {
-        method: 'DELETE'
-      }).then(() => loadShiftTemplates())
-    }
-  }
-
-  const handleEdit = (shiftTemplate: ShiftTemplate) => {
-    setSelectedShiftTemplate(shiftTemplate)
-    setIsDialogOpen(true)
+  const handleDelete = (template: ShiftTemplate) => {
+    confirmDialog.open(template, async () => {
+      await deleteShiftTemplate(template.ID)
+      refreshShiftTemplates()
+    })
   }
 
   const handleFormSubmit = () => {
-    setIsDialogOpen(false)
-    setSelectedShiftTemplate(null)
-    loadShiftTemplates()
+    formDialog.close()
+    refreshShiftTemplates()
   }
 
   return (
     <div className="container mx-auto py-10">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Schichtvorlagen</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setSelectedShiftTemplate(null)}>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Neue Schichtvorlage
-            </Button>
-          </DialogTrigger>
+      <PageHeader 
+        title="Schichtvorlagen"
+        onAdd={() => formDialog.open()}
+        addButtonText="Neue Schichtvorlage"
+      />
+
+      <DataTable
+        data={shiftTemplates}
+        columns={[
+          { header: "Name", accessor: "name" as const },
+          { header: "Beschreibung", accessor: "description" as const },
+          { 
+            header: "Mitarbeiter", 
+            accessor: (template: ShiftTemplate) => template.employees?.length || 0
+          },
+          {
+            header: "Wochenplan",
+            accessor: (template: ShiftTemplate) => (
+              <WeekdayShifts template={template} />
+            )
+          },
+          {
+            header: "Farbe",
+            accessor: (template: ShiftTemplate) => (
+              <ColorBadge color={template.color} />
+            )
+          }
+        ]}
+        onEdit={(template) => formDialog.open(template)}
+        onDelete={handleDelete}
+      />
+
+      {formDialog.isOpen && (
+        <Dialog 
+          open={formDialog.isOpen} 
+          onOpenChange={formDialog.close}
+        >
           <DialogContent>
             <DialogHeader>
               <DialogTitle>
-                {selectedShiftTemplate ? 'Schichtvorlage bearbeiten' : 'Neue Schichtvorlage'}
+                {formDialog.data ? 'Schichtvorlage bearbeiten' : 'Neue Schichtvorlage'}
               </DialogTitle>
             </DialogHeader>
             <ShiftTemplateForm 
-              shiftTemplate={selectedShiftTemplate} 
+              key={formDialog.data?.ID || 'new'} 
+              shiftTemplate={formDialog.data} 
               onSubmit={handleFormSubmit}
             />
           </DialogContent>
         </Dialog>
-      </div>
+      )}
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Beschreibung</TableHead>
-            <TableHead>Mitarbeiter</TableHead>
-            <TableHead>Mo</TableHead>
-            <TableHead>Di</TableHead>
-            <TableHead>Mi</TableHead>
-            <TableHead>Do</TableHead>
-            <TableHead>Fr</TableHead>
-            <TableHead>Sa</TableHead>
-            <TableHead>So</TableHead>
-            <TableHead>Farbe</TableHead>
-            <TableHead className="w-[100px]">Aktionen</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {shiftTemplates.map(template => (
-            <TableRow key={template.ID}>
-              <TableCell>{template.name}</TableCell>
-              <TableCell>{template.description}</TableCell>
-              <TableCell>{template.employees?.length || 0}</TableCell>
-              <TableCell>{template.monday?.shift_type?.name}</TableCell>
-              <TableCell>{template.tuesday?.shift_type?.name}</TableCell>
-              <TableCell>{template.wednesday?.shift_type?.name}</TableCell>
-              <TableCell>{template.thursday?.shift_type?.name}</TableCell>
-              <TableCell>{template.friday?.shift_type?.name}</TableCell>
-              <TableCell>{template.saturday?.shift_type?.name}</TableCell>
-              <TableCell>{template.sunday?.shift_type?.name}</TableCell>
-              <TableCell>
-                <div 
-                  className="w-6 h-6 rounded-full" 
-                  style={{ backgroundColor: template.color }}
-                />
-              </TableCell>
-              <TableCell>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(template)}>
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(template.ID)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      <ConfirmDialog
+        open={confirmDialog.isOpen}
+        onOpenChange={confirmDialog.close}
+        title="Schichtvorlage löschen"
+        description={`Möchten Sie die Schichtvorlage "${confirmDialog.data?.name}" wirklich löschen?`}
+        onConfirm={confirmDialog.confirm}
+        variant="destructive"
+      />
     </div>
   )
 }
-
-export default ShiftTemplatesPage
